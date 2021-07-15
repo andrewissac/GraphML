@@ -5,36 +5,28 @@ import pprint
 import matplotlib.pyplot as plt
 import sys
 from os import path
+from pathlib import Path
 
+"""
+THIS IS TO REDUCE THE NUMBER OF GRAPHS TO N = 500000
+ALSO ADDS DELTA PHI/ETA/R
+"""
 
-files = glob.glob("/ceph/akhmet/forAndrewIsaac/prod_2018_v2_processed_v4" + "/**/*.root", recursive=True)
-treename = "taus"
-
-testfile = '/ceph/akhmet/forAndrewIsaac/prod_2018_v2_processed_v4/DYJetsToLL_M-50_jets.root'
-
-df = ROOT.RDataFrame(treename, testfile)
-
-class FilterFunction:
-    def __init__(self, pfCand_entry: str, pfCand_entryDatatype: str, code: str=""):
-        self.functionName = "filter_" + pfCand_entry
+class RVecToVectorFunction:
+    def __init__(self, pfCand_entry: str, pfCand_entryDatatype: str, newEntryName: str):
+        self.functionName = "convert_" + pfCand_entry
         self.pfCand_entryDatatype = pfCand_entryDatatype
         self.pfCand_entry = pfCand_entry
-        if(code == ""):
-            self.code = self.generateCppFunc_FilterByPuppiWeightNoLep()
-            self.call = self.functionName + f"({self.pfCand_entry},pfCand_puppiWeightNoLep)"
-        else:
-            self.code = code
-            self.call = self.functionName + f"({self.pfCand_entry})"
-        self.newEntryName = pfCand_entry + "_cut"
+        self.code = self.generateCppFunc()
+        self.call = self.functionName + f"({self.pfCand_entry})"
+        self.newEntryName = newEntryName
 
-    def generateCppFunc_FilterByPuppiWeightNoLep(self) -> str:
+    def generateCppFunc(self) -> str:
         return f"""
-        std::vector<{self.pfCand_entryDatatype}> {self.functionName} (const ROOT::VecOps::RVec<{self.pfCand_entryDatatype}>& {self.pfCand_entry}, const ROOT::VecOps::RVec<int32_t>& pfCand_puppiWeightNoLep){{
+        std::vector<{self.pfCand_entryDatatype}> {self.functionName} (const ROOT::VecOps::RVec<{self.pfCand_entryDatatype}>& {self.pfCand_entry}){{
             std::vector<{self.pfCand_entryDatatype}> v;
             for(std::size_t i=0; i < {self.pfCand_entry}.size(); i++){{
-                if(pfCand_puppiWeightNoLep[i] > 0){{
-                    v.push_back({self.pfCand_entry}[i]);
-                }}
+                v.push_back({self.pfCand_entry}[i]);
             }}
             return v;
         }};
@@ -46,14 +38,11 @@ class CalculateFunction:
         self.call = call
         self.code = code
 
-CalcFunctions = [
+calcFunctions = [
     CalculateFunction(
-        "pfCand_deltaPhi", 
+        "pfCand_DeltaPhi", 
         "GetDeltaPhi(pfCand_phi, tau_phi)",
         f"""
-        float const kPI = TMath::Pi();
-        float const kTWOPI = 2.*kPI;
-
         std::vector<float> GetDeltaPhi (const ROOT::VecOps::RVec<float>& pfCand_phi, float tau_phi){{
             std::vector<float> v;
             for(std::size_t i=0; i < pfCand_phi.size(); i++){{
@@ -65,7 +54,7 @@ CalcFunctions = [
         """
         ),
     CalculateFunction(
-        "pfCand_deltaEta", 
+        "pfCand_DeltaEta", 
         "GetDeltaEta(pfCand_eta, tau_eta)",
         f"""
         std::vector<float> GetDeltaEta (const ROOT::VecOps::RVec<float>& pfCand_eta, float tau_eta){{
@@ -78,15 +67,13 @@ CalcFunctions = [
         }};
         """),
     CalculateFunction(
-        "pfCand_deltaR", 
-        "GetDeltaR(pfCand_phi, pfCand_eta, tau_phi, tau_eta)",
+        "pfCand_DeltaR", 
+        "GetDeltaR(pfCand_DeltaPhi, pfCand_DeltaEta)",
         f"""
-        std::vector<float> GetDeltaR (const ROOT::VecOps::RVec<float>& pfCand_phi, const ROOT::VecOps::RVec<float>& pfCand_eta, float tau_phi, float tau_eta){{
+        std::vector<float> GetDeltaR (const ROOT::VecOps::RVec<float>& pfCand_DeltaPhi, const ROOT::VecOps::RVec<float>& pfCand_DeltaEta){{
             std::vector<float> v;
-            for(std::size_t i=0; i < pfCand_eta.size(); i++){{
-                float deltaPhi = TVector2::Phi_mpi_pi(tau_phi - pfCand_phi[i]); 
-                float deltaEta = tau_eta - pfCand_eta[i]; 
-                float deltaR = TMath::Sqrt(deltaPhi * deltaPhi + deltaEta * deltaEta);
+            for(std::size_t i=0; i < pfCand_DeltaPhi.size(); i++){{
+                float deltaR = TMath::Sqrt(pfCand_DeltaPhi[i] * pfCand_DeltaPhi[i] + pfCand_DeltaEta[i] * pfCand_DeltaEta[i]);
                 v.push_back(deltaR);
             }}
             return v;
@@ -94,46 +81,43 @@ CalcFunctions = [
         """)
 ]
 
-ff = { 
-    'pfCand_pt': FilterFunction("pfCand_pt", "float"),
-    'pfCand_eta': FilterFunction("pfCand_eta", "float"),
-    'pfCand_phi': FilterFunction("pfCand_phi", "float"),
-    'pfCand_mass': FilterFunction("pfCand_mass", "float"),
-    'pfCand_charge': FilterFunction("pfCand_charge", "int32_t"),
-    'pfCand_particleType': FilterFunction("pfCand_particleType", "int32_t"),
-    'pfCand_puppiWeightNoLep': FilterFunction(
-        "pfCand_puppiWeightNoLep",
-        "int32_t",
-        f"""
-        std::vector<int32_t> filter_pfCand_puppiWeightNoLep (const ROOT::VecOps::RVec<int32_t>& pfCand_puppiWeightNoLep){{
-            std::vector<int32_t> v;
-            for(std::size_t i=0; i < pfCand_puppiWeightNoLep.size(); i++){{
-                if(pfCand_puppiWeightNoLep[i] > 0){{
-                    v.push_back(pfCand_puppiWeightNoLep[i]);
-                }}
-            }}
-            return v;
-        }};
-        """
-        )
-}
+convertFunctions = [ 
+    RVecToVectorFunction("pfCand_pt", "float", "pfCand_Pt"),
+    RVecToVectorFunction("pfCand_eta", "float", "pfCand_Eta"),
+    RVecToVectorFunction("pfCand_phi", "float", "pfCand_Phi"),
+    RVecToVectorFunction("pfCand_mass", "float", "pfCand_Mass"),
+    RVecToVectorFunction("pfCand_charge", "int32_t", "pfCand_Charge"),
+    RVecToVectorFunction("pfCand_particleType", "int32_t", "pfCand_ParticleType"),
+    RVecToVectorFunction("pfCand_puppiWeightNoLep", "int32_t", "pfCand_PuppiWeightNoLep")
+]
+
+files = glob.glob("/ceph/akhmet/forAndrewIsaac/prod_2018_v2_processed_v4" + "/**/*.root", recursive=True)
+treename = "taus"
+n = 500000
+
+outputFolder = path.join('/ceph/aissac/ntuple_for_graphs/prod_2018_v2_processed_v4', f'trimmed_{n}_and_added_deltaPhiEtaR')
+Path(outputFolder).mkdir(parents=True, exist_ok=True)
 
 branchList = ROOT.vector('string')()
-for key, val in ff.items():
-    #print(key + ": " + val.code + "\n" + val.call + "\n" + "#####################")
-    ROOT.gInterpreter.Declare(val.code)
-    branchList.push_back(val.newEntryName)
-    df = df.Define(val.newEntryName, val.call)
-
-for f in CalcFunctions:
+# only declare c++ code once, not for every file
+for f in calcFunctions:
     ROOT.gInterpreter.Declare(f.code)
     branchList.push_back(f.newEntryName)
-    df = df.Define(f.newEntryName, f.call)
 
-n = 250000
-outputFolder = '/ceph/aissac/ntuple_for_graphs/prod_2018_v2_processed_v4_puppiWeightNoLep_greater_0_cut'
-outputFileName = path.join(outputFolder, testfile.split('/')[-1].replace('.root', f'_trimmed_n_{n}.root'))
+for f in convertFunctions:
+    ROOT.gInterpreter.Declare(f.code)
+    branchList.push_back(f.newEntryName)
 
-df_cut = df.Range(n)
-df_cut.Snapshot(treename, outputFileName, branchList)
+for file in files:
+    outputFileName = path.join(outputFolder, file.split('/')[-1])
+    df = ROOT.RDataFrame(treename, file)
+
+    for f in calcFunctions:
+        df = df.Define(f.newEntryName, f.call)
+
+    for f in convertFunctions:
+        df = df.Define(f.newEntryName, f.call)
+
+    df = df.Range(n)
+    df.Snapshot(treename, outputFileName, branchList)
 
