@@ -14,23 +14,23 @@ class CutFunction:
         self.pfCand_entryDatatype = pfCand_entryDatatype
         self.pfCand_entry = pfCand_entry
         self.deltaR_threshold = deltaR_threshold
-        self.code = self.generateCppFunc_CutByDeltaR()
-        if self.pfCand_entry != 'pfCand_DeltaR':
-            self.call = self.functionName + f"({self.pfCand_entry}, pfCand_DeltaR)"
+        self.code = self.generateCppFunc_CutByPuppiWeightNoLep()
+        if self.pfCand_entry != 'pfCand_PuppiWeightNoLep':
+            self.call = self.functionName + f"({self.pfCand_entry}, pfCand_PuppiWeightNoLep)"
         else:
-            self.call = self.functionName + f"(pfCand_DeltaR)"
+            self.call = self.functionName + f"(pfCand_PuppiWeightNoLep)"
         self.newEntryName = newEntryName
 
-    def generateCppFunc_CutByDeltaR(self) -> str:
-        if self.pfCand_entry != 'pfCand_DeltaR':
+    def generateCppFunc_CutByPuppiWeightNoLep(self) -> str:
+        if self.pfCand_entry != 'pfCand_PuppiWeightNoLep':
             return f"""
             std::vector<{self.pfCand_entryDatatype}> {self.functionName} (
                 const ROOT::VecOps::RVec<{self.pfCand_entryDatatype}>& {self.pfCand_entry}, 
-                const ROOT::VecOps::RVec<float>& pfCand_DeltaR){{
+                const ROOT::VecOps::RVec<float>& pfCand_PuppiWeightNoLep){{
 
                 std::vector<{self.pfCand_entryDatatype}> v;
                 for(std::size_t i=0; i < {self.pfCand_entry}.size(); i++){{
-                    if(pfCand_DeltaR[i] < {self.deltaR_threshold}){{
+                    if(pfCand_PuppiWeightNoLep[i] > 0.0){{
                         v.push_back({self.pfCand_entry}[i]);
                     }}
                 }}
@@ -39,10 +39,10 @@ class CutFunction:
             """
         else:
             return f"""
-            std::vector<{self.pfCand_entryDatatype}> {self.functionName} (const ROOT::VecOps::RVec<float>& pfCand_DeltaR){{
+            std::vector<{self.pfCand_entryDatatype}> {self.functionName} (const ROOT::VecOps::RVec<float>& pfCand_PuppiWeightNoLep){{
                 std::vector<{self.pfCand_entryDatatype}> v;
                 for(std::size_t i=0; i < {self.pfCand_entry}.size(); i++){{
-                    if(pfCand_DeltaR[i] < {self.deltaR_threshold}){{
+                    if(pfCand_PuppiWeightNoLep[i] > 0.0){{
                         v.push_back({self.pfCand_entry}[i]);
                     }}
                 }}
@@ -64,12 +64,12 @@ cutFunctions = {
     CutFunction("pfCand_DeltaR", "float", "pfCand_deltaR"),
 }
 
-
-files = glob.glob("/ceph/aissac/ntuple_for_graphs/prod_2018_v2_processed_v5/trimmed_500000_and_added_deltaPhiEtaR" + "/**/*.root", recursive=True)
+baseInputFolder = '/ceph/aissac/ntuple_for_graphs/prod_2018_v2_processed_v5'
+files = glob.glob(baseInputFolder + "/trimmed_500000_and_added_deltaPhiEtaR" + "/**/*.root", recursive=True)
 treename = "taus"
 n = 200000
 
-outputFolder = path.join('/ceph/aissac/ntuple_for_graphs/prod_2018_v2_processed_v5', f'trimmed_{n}_and_cut_deltaR_smaller_0Point5')
+outputFolder = path.join(baseInputFolder, f'trimmed_{n}_and_cut_puppiWeightNoLep_greater_0')
 Path(outputFolder).mkdir(parents=True, exist_ok=True)
 
 branchList = ROOT.vector('string')()

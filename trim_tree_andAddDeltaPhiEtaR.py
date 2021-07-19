@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import sys
 from os import path
 from pathlib import Path
+from tqdm import tqdm
 
 """
 THIS IS TO REDUCE THE NUMBER OF GRAPHS TO N = 500000
@@ -70,7 +71,10 @@ calcFunctions = [
         "pfCand_DeltaR", 
         "GetDeltaR(pfCand_DeltaPhi, pfCand_DeltaEta)",
         f"""
-        std::vector<float> GetDeltaR (const ROOT::VecOps::RVec<float>& pfCand_DeltaPhi, const ROOT::VecOps::RVec<float>& pfCand_DeltaEta){{
+        std::vector<float> GetDeltaR (
+            const ROOT::VecOps::RVec<float>& pfCand_DeltaPhi, 
+            const ROOT::VecOps::RVec<float>& pfCand_DeltaEta){{
+
             std::vector<float> v;
             for(std::size_t i=0; i < pfCand_DeltaPhi.size(); i++){{
                 float deltaR = TMath::Sqrt(pfCand_DeltaPhi[i] * pfCand_DeltaPhi[i] + pfCand_DeltaEta[i] * pfCand_DeltaEta[i]);
@@ -88,14 +92,15 @@ convertFunctions = [
     RVecToVectorFunction("pfCand_mass", "float", "pfCand_Mass"),
     RVecToVectorFunction("pfCand_charge", "int32_t", "pfCand_Charge"),
     RVecToVectorFunction("pfCand_particleType", "int32_t", "pfCand_ParticleType"),
-    RVecToVectorFunction("pfCand_puppiWeightNoLep", "int32_t", "pfCand_PuppiWeightNoLep")
+    RVecToVectorFunction("pfCand_jetDaughter", "int32_t", "pfCand_JetDaughter"),
+    RVecToVectorFunction("pfCand_puppiWeightNoLep", "float", "pfCand_PuppiWeightNoLep")
 ]
 
-files = glob.glob("/ceph/akhmet/forAndrewIsaac/prod_2018_v2_processed_v4" + "/**/*.root", recursive=True)
+files = glob.glob("/ceph/akhmet/forAndrewIsaac/prod_2018_v2_processed_v5" + "/**/*.root", recursive=True)
 treename = "taus"
 n = 500000
 
-outputFolder = path.join('/ceph/aissac/ntuple_for_graphs/prod_2018_v2_processed_v4', f'trimmed_{n}_and_added_deltaPhiEtaR')
+outputFolder = path.join('/ceph/aissac/ntuple_for_graphs/prod_2018_v2_processed_v5', f'trimmed_{n}_and_added_deltaPhiEtaR')
 Path(outputFolder).mkdir(parents=True, exist_ok=True)
 
 branchList = ROOT.vector('string')()
@@ -108,7 +113,7 @@ for f in convertFunctions:
     ROOT.gInterpreter.Declare(f.code)
     branchList.push_back(f.newEntryName)
 
-for file in files:
+for file in tqdm(files):
     outputFileName = path.join(outputFolder, file.split('/')[-1])
     df = ROOT.RDataFrame(treename, file)
 
