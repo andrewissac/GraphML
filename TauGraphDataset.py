@@ -1,5 +1,6 @@
 import os
 import dgl
+import math
 import glob
 import torch
 import uproot
@@ -66,23 +67,9 @@ class TauGraphDataset(DGLDataset):
         # process raw data to graphs, labels, splitting masks
         self.graphs = []
         self.labels = []
-        self.graphCount = 0
         phi = self.info.nodeFeatMap['phi']
         eta = self.info.nodeFeatMap['eta']
         pt = self.info.nodeFeatMap['pt']
-
-        def calcAbsDiff(vec):
-            """
-            To calculate deltaPhi, deltaEta, rapiditysquared efficiently the following is done:
-            Take input array with Phi values of all nodes, create matrix by repeating the column vector
-            Get second matrix as the transposed first matrix
-            Substract both and take the absolute.
-            """
-            dim = len(vec)
-            matB = np.expand_dims(vec, axis=1)
-            matB = np.repeat(matB, dim, axis=1)
-            matA = np.transpose(matB)
-            return np.absolute(matA - matB)
 
         def shift_to_minuspi_pi(x):
             """
@@ -93,9 +80,7 @@ class TauGraphDataset(DGLDataset):
                 x -= twoPi
             while(x < -np.pi):
                 x += twoPi
-            return x   
-            
-        shift_mpi_pi = np.vectorize(shift_to_minuspi_pi)
+            return x      
 
         # generate graphs from rootfiles
         it = 1
@@ -135,11 +120,6 @@ class TauGraphDataset(DGLDataset):
                     nodeFeatures.append(np.array(pfCand_particleType[i]))
                     nodeFeatures.append(np.array(pfCand_summand[i]))
 
-                    deltaEta = calcAbsDiff(nodeFeatures[eta])
-                    # shift deltaPhi to interval [-pi, pi)
-                    deltaPhi = shift_mpi_pi(calcAbsDiff(nodeFeatures[phi]))
-                    deltaR = np.sqrt(deltaPhi * deltaPhi + deltaEta * deltaEta)
-
                     src_ids = []
                     dst_ids = []
                     edgeFeatures = []
@@ -149,8 +129,12 @@ class TauGraphDataset(DGLDataset):
                                 # add src/dst node ids
                                 src_ids.append(j)
                                 dst_ids.append(k)
+
+                                deltaEta = np.float32(nodeFeatures[eta][j] - nodeFeatures[eta][k])
+                                deltaPhi = np.float32(shift_to_minuspi_pi(nodeFeatures[phi][j] - nodeFeatures[phi][k]))
+                                deltaR = np.float32(math.sqrt(deltaPhi * deltaPhi + deltaEta * deltaEta))
                                 # add edge features (care, order should be the same as in eFeatMapping!)
-                                edgeFeatures.append([deltaEta[j][k], deltaPhi[j][k], deltaR[j][k]])
+                                edgeFeatures.append([deltaEta, deltaPhi, deltaR])
 
                     # build graph based on src/dst node ids
                     g = dgl.graph((src_ids, dst_ids))
@@ -179,7 +163,7 @@ class TauGraphDataset(DGLDataset):
         self.labels = torch.LongTensor(self.labels)
 
         # save histograms
-        self.saveEtaPtScatterPlot()
+        #self.saveEtaPtScatterPlot()
         self.printProperties()
 
     def __getitem__(self, idx):
@@ -205,7 +189,9 @@ class TauGraphDataset(DGLDataset):
             'dim_gfeats' : self.dim_gfeats,
             'nodeFeatKeys' : self.nodeFeatKeys,
             'edgeFeatKeys' : self.edgeFeatKeys,
-            'graphFeatKeys' : self.graphFeatKeys
+            'graphFeatKeys' : self.graphFeatKeys,
+            'maxNodeCount' : self.maxNodeCount,
+            'minNodeCount' : self.minNodeCount
             })
 
     def load(self):
@@ -269,6 +255,14 @@ class TauGraphDataset(DGLDataset):
     @property
     def dim_gfeats(self):
         return len(self.graphFeatKeys)
+
+    @property
+    def maxNodeCount(self):
+        return max([g.number_of_nodes() for g in self.graphs])
+
+    @property
+    def minNodeCount(self):
+        return min([g.number_of_nodes() for g in self.graphs])
     
     def get_split_indices(self):
         train_split_idx = int(len(self.graphs) * self.info.splitPercentages['train'])
@@ -293,6 +287,8 @@ class TauGraphDataset(DGLDataset):
         print(f'Edge feature keys: {self.edgeFeatKeys}')
         print(f'Dim graph features: {self.dim_gfeats}')
         print(f'Graph feature keys: {self.graphFeatKeys}')
+        print(f'Max node count: {self.maxNodeCount}')
+        print(f'Min node count: {self.minNodeCount}')
 
     def _getFeatureByKey(self, g, key):
         if(key in self.info.nodeFeatMap):
@@ -351,7 +347,14 @@ def GetNodeFeatureVectors(graph):
     return _getFeatureVec(feat)
 
 def GetEdgeFeatureVectors(graph):
-    return _getFeatureVec(graph.edata.values())
+    return graph.edata['feat']
+
+def GetEdgeFeatureVectorsFromSourceNode(graph, sourceNodeID):
+    allEdgeFeat = GetEdgeFeatureVectors(graph)
+    nodeCount = graph.num_nodes()
+    beginIdx = sourceNodeID * (nodeCount-1)
+    endIdx = beginIdx + nodeCount-1
+    return allEdgeFeat[beginIdx:endIdx]
 
 def _getFeatureVec(data):
     feat = tuple([x.data for x in data])
@@ -361,31 +364,8 @@ def _getFeatureVec(data):
 
 def GetNeighborNodes(graph, sourceNodeLabel: int):
     """
-    returns tensor of [srcNodeID, dstNodeId]
-    e.g.:
-    neighborhood = GetNeighborNodes(graph, sourceNodeLabel=7)
-    print(neighborhood)
-    tensor([[ 7,  0],
-        [ 7,  1],
-        [ 7,  2],
-        [ 7,  3],
-        [ 7,  4],
-        [ 7,  5],
-        [ 7,  6],
-        [ 7,  8],
-        [ 7,  9],
-        [ 7, 10],
-        [ 7, 11],
-        [ 7, 12],
-        [ 7, 13],
-        [ 7, 14]])
+    returns a tuple(tensor(srcNodeIDs), tensor(dstNodeIDs)) of the whole graph
     """
-    # if sourceNodeLabel > graph.num_nodes() - 1:
-    #     raise Exception(f'Specified source node label exceeds the number of available nodes in the graph.')
-    # edgeListWholeGraph = GetEdgeList(graph)
-    # u, v = edgeListWholeGraph
-    # indices = (u == sourceNodeLabel).nonzero(as_tuple=True)[0]
-    # neighbors = torch.dstack(edgeListWholeGraph).squeeze()[indices]
     return graph.out_edges(sourceNodeLabel)
 
 def GetEdgeList(graph):
@@ -393,3 +373,51 @@ def GetEdgeList(graph):
     returns a tuple(tensor(srcNodeID), tensor(dstNodeId)) of the whole graph
     """
     return graph.edges(form='uv', order='srcdst')
+
+def Graph2FlatZeropaddedList(graph, nFeatDim, eFeatDim, maxNodeCount, useEdgeFeat):
+    """
+    Flatten + zero pad graph data to be able to use it as an input feature vector in keras.
+    
+    The zero padding always depends on the graph with the highest node count in the dataset
+    example: biggest graph in a graph dataset might has maxNodeCount=81 nodes
+    The graph data that needs to be converted into a 1D array (which contains node+edge features) has 25 nodes  
+    and needs to be padded with zeros until 81 nodes. Always keep in mind that we are using fully connected graphs.
+    
+    Lets say we have:
+    nodefeat_dim: 7
+    edgefeat_dim: 3
+    nodeCount: 25
+    maxNodeCount = 81
+    
+    That means we will have to zero pad for 3*81*80=19440 edge features and 7*81=567 node features!
+    ------
+    The padded 1D array information about a single node has a length of:
+    (nodefeat_dim + edgefeat_dim * (nodeCount-1) + edgefeat_dim * ((maxNodeCount-1) - (nodeCount-1)))
+    = 7 + 3 * (25-1) + 3 * ((81-1) - (25-1)) = 7 + 3 * 24 + 3 * 56 = 7 + 3 * 80 = 247
+    
+    The padded 1D array information for the whole graph will ultimately have the length of:
+    81 * 247 = 20007 = 19440 (edge features) + 567 (nodefeatures)
+    """
+    kerasInput = []
+    nodeCount = graph.num_nodes()
+    nFeats = graph.ndata['feat']
+    eFeats = graph.edata['feat']
+
+    def _getEdgeFeatureVectorsFromSourceNode(allEdgeFeats, nodeCount, sourceNodeID):
+        beginIdx = sourceNodeID * (nodeCount-1)
+        endIdx = beginIdx + nodeCount-1
+        return allEdgeFeats[beginIdx:endIdx]
+
+    for i in range(maxNodeCount):
+        if i < nodeCount:
+            kerasInput.extend(torch.flatten(nFeats[i]))
+            if useEdgeFeat:
+                sourceNodeEdgeFeatures = torch.flatten(_getEdgeFeatureVectorsFromSourceNode(eFeats, nodeCount, i))
+                kerasInput.extend(sourceNodeEdgeFeatures)
+                zerosNeeded = (maxNodeCount-1) - (nodeCount-1)
+                kerasInput.extend([0.0] * eFeatDim * zerosNeeded)
+        elif nodeCount <= i < maxNodeCount: # fill everything with zeros until maxNodeCount
+            kerasInput.extend([0.0] * nFeatDim)
+            if(useEdgeFeat):
+                kerasInput.extend([0.0] * eFeatDim * (maxNodeCount - 1))
+    return kerasInput

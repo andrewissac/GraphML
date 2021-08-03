@@ -41,18 +41,23 @@ class CustomGCN_OnlyNFeatSumMsg(nn.Module):
     def __init__(self, in_feats, h_feats, num_classes):
         super(CustomGCN_OnlyNFeatSumMsg, self).__init__()
         self.conv1 = CustomGCNLayerOnlyNFeatSumMsg(in_feats, h_feats)
-        self.conv2 = CustomGCNLayerOnlyNFeatSumMsg(h_feats, num_classes)
+        self.conv2 = CustomGCNLayerOnlyNFeatSumMsg(h_feats, h_feats)
+        self.predict = nn.Linear(h_feats, num_classes)
         
     def reset_parameters(self):
         self.conv1.reset_parameters()
         self.conv2.reset_parameters()
+        self.predict.reset_parameters()
 
     def forward(self, g, in_feat):
-        h = self.conv1(g, in_feat)
-        h = F.relu(h)
-        h = self.conv2(g, h)
-        g.ndata['h'] = h
-        return dgl.mean_nodes(g, 'h')
+        h = F.relu(self.conv1(g, in_feat))
+        h = F.relu(self.conv2(g, h))
+
+        with g.local_scope():
+            g.ndata['h'] = h
+            # calculate graph representation by average readout
+            graph_feats = dgl.mean_nodes(g, 'h')
+            return self.predict(graph_feats)
 
 
 class CustomGCNLayerOnlyNFeatMeanMsg(nn.Module):
@@ -93,15 +98,20 @@ class CustomGCN_OnlyNFeatMeanMsg(nn.Module):
     def __init__(self, in_feats, h_feats, num_classes):
         super(CustomGCN_OnlyNFeatMeanMsg, self).__init__()
         self.conv1 = CustomGCNLayerOnlyNFeatMeanMsg(in_feats, h_feats)
-        self.conv2 = CustomGCNLayerOnlyNFeatMeanMsg(h_feats, num_classes)
+        self.conv2 = CustomGCNLayerOnlyNFeatMeanMsg(h_feats, h_feats)
+        self.predict = nn.Linear(h_feats, num_classes)
         
     def reset_parameters(self):
         self.conv1.reset_parameters()
         self.conv2.reset_parameters()
+        self.predict.reset_parameters()
 
     def forward(self, g, in_feat):
-        h = self.conv1(g, in_feat)
-        h = F.relu(h)
-        h = self.conv2(g, h)
-        g.ndata['h'] = h
-        return dgl.mean_nodes(g, 'h')
+        h = F.relu(self.conv1(g, in_feat))
+        h = F.relu(self.conv2(g, h))
+
+        with g.local_scope():
+            g.ndata['h'] = h
+            # calculate graph representation by average readout
+            graph_feats = dgl.mean_nodes(g, 'h')
+            return self.predict(graph_feats)
