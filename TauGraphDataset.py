@@ -420,4 +420,4 @@ def Graph2FlatZeropaddedList(graph, nFeatDim, eFeatDim, maxNodeCount, useEdgeFea
             kerasInput.extend([0.0] * nFeatDim)
             if(useEdgeFeat):
                 kerasInput.extend([0.0] * eFeatDim * (maxNodeCount - 1))
-    return kerasInput
+    return np.array(kerasInput, dtype=np.float32)
