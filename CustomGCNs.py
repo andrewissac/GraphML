@@ -44,7 +44,8 @@ class CustomGCN_OnlyNFeatSumMsg(nn.Module):
         self.convLayers = nn.ModuleList()
         for i in range(num_messagepasses - 1):
             self.convLayers.append(CustomGCNLayerOnlyNFeatSumMsg(h_feats, h_feats))
-        if(dropout > 0):
+        self.dropout = None
+        if dropout > 0:
             self.dropout = nn.Dropout(p=dropout)
         self.predict = nn.Linear(h_feats, num_classes)
         
@@ -57,7 +58,7 @@ class CustomGCN_OnlyNFeatSumMsg(nn.Module):
     def forward(self, g, in_feat):
         h = F.relu(self.conv1(g, in_feat))
         for layer in self.convLayers:
-            if self.dropout > 0:
+            if self.dropout != None:
                 h = self.dropout(h)
             h = F.relu(layer(g, h))
 
@@ -109,7 +110,8 @@ class CustomGCN_OnlyNFeatMeanMsg(nn.Module):
         self.convLayers = nn.ModuleList()
         for i in range(num_messagepasses - 1):
             self.convLayers.append(CustomGCNLayerOnlyNFeatMeanMsg(h_feats, h_feats))
-        if(dropout > 0):
+        self.dropout = None
+        if dropout > 0:
             self.dropout = nn.Dropout(p=dropout)
         self.predict = nn.Linear(h_feats, num_classes)
         
@@ -122,7 +124,7 @@ class CustomGCN_OnlyNFeatMeanMsg(nn.Module):
     def forward(self, g, in_feat):
         h = F.relu(self.conv1(g, in_feat))
         for layer in self.convLayers:
-            if self.dropout > 0:
+            if self.dropout != None:
                 h = self.dropout(h)
             h = F.relu(layer(g, h))
 
