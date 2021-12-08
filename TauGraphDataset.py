@@ -95,11 +95,13 @@ class TauGraphDataset(DGLDataset):
                 pfCand_charge = ttree["pfCand_charge"].array()
                 pfCand_particleType = ttree["pfCand_particleType"].array()
                 nodeCounts = [len(x) for x in pfCand_pt]
+                numberOfGraphs = len(nodeCounts)
+                deepTau2017v2p1VSjet = ttree["tau_byDeepTau2017v2p1VSjet"].array()
                 pfCand_summand = []
                 for nodeCount in nodeCounts:
                     pfCand_summand.append([1 for i in range(nodeCount)])
 
-                for i in tqdm(range(len(nodeCounts)), 
+                for i in tqdm(range(numberOfGraphs), 
                 desc=f'({it}/{self.info.rootfilesCount}) Generating graphs from {Path(rootfile).name}'):
                     # only build as many graphs for this graphClass as specified in the info
                     if graphCount >= self.info.graphsPerClass:
@@ -143,7 +145,9 @@ class TauGraphDataset(DGLDataset):
                     g.ndata['feat'] = torch.from_numpy(nodeFeatures)
                     g.edata['feat'] = torch.tensor(edgeFeatures)
                     # order: 1st NodeCount
-                    graphFeatures = { 'feat' : torch.from_numpy(np.array([nodeCount]))}
+                    # graphFeature vec containing: [nodeCount, tau_byDeepTau2017v2p1VSjet, tau_byDeepTau2017v2p1VSe, tau_byDeepTau2017v2p1VSmu, tau_byDeepTau2017v2p1VSjetraw, tau_byDeepTau2017v2p1VSeraw 5, tau_byDeepTau2017v2p1VSmuraw 6]
+                    deepTauIDVSjet = int(deepTau2017v2p1VSjet[i])
+                    graphFeatures = { 'feat' : torch.from_numpy(np.array([nodeCount, deepTauIDVSjet]))}
                     setattr(g, 'gdata', graphFeatures)
                     
                     self.graphs.append(g)
@@ -265,10 +269,12 @@ class TauGraphDataset(DGLDataset):
         return min([g.number_of_nodes() for g in self.graphs])
     
     def get_split_indices(self):
-        train_split_idx = int(len(self.graphs) * self.info.splitPercentages['train'])
+        train_split_idx = int(self.num_graphs * self.info.splitPercentages['train'])
+        valid_split_idx = train_split_idx + int(self.num_graphs * self.info.splitPercentages['valid'])
         return {
             'train': torch.arange(train_split_idx),
-            'test': torch.arange(train_split_idx, len(self.graphs))
+            'valid': torch.arange(train_split_idx, valid_split_idx),
+            'test': torch.arange(valid_split_idx, self.num_graphs)
         }
     
     def download(self):
@@ -295,6 +301,8 @@ class TauGraphDataset(DGLDataset):
             return g.ndata['feat'][:,self.info.nodeFeatMap[key]].tolist()
         elif(key in self.info.edgeFeatMap):
             return g.edata['feat'][:,self.info.edgeFeatMap[key]].tolist()
+        elif(key in self.info.graphFeatMap):
+            return g.gdata['feat'][:,self.info.graphFeatMap[key]].tolist()
         else:
             raise KeyError(f'Key {key} not found in node or edge data.')
 

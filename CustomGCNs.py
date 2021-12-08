@@ -38,20 +38,28 @@ class CustomGCNLayerOnlyNFeatSumMsg(nn.Module):
         return summary.format(**self.__dict__)
 
 class CustomGCN_OnlyNFeatSumMsg(nn.Module):
-    def __init__(self, in_feats, h_feats, num_classes):
+    def __init__(self, in_feats, h_feats,num_classes, num_messagepasses=2, dropout=0):
         super(CustomGCN_OnlyNFeatSumMsg, self).__init__()
         self.conv1 = CustomGCNLayerOnlyNFeatSumMsg(in_feats, h_feats)
-        self.conv2 = CustomGCNLayerOnlyNFeatSumMsg(h_feats, h_feats)
+        self.convLayers = nn.ModuleList()
+        for i in range(num_messagepasses - 1):
+            self.convLayers.append(CustomGCNLayerOnlyNFeatSumMsg(h_feats, h_feats))
+        if(dropout > 0):
+            self.dropout = nn.Dropout(p=dropout)
         self.predict = nn.Linear(h_feats, num_classes)
         
     def reset_parameters(self):
         self.conv1.reset_parameters()
-        self.conv2.reset_parameters()
+        for layer in self.convLayers:
+            layer.reset_parameters()
         self.predict.reset_parameters()
 
     def forward(self, g, in_feat):
         h = F.relu(self.conv1(g, in_feat))
-        h = F.relu(self.conv2(g, h))
+        for layer in self.convLayers:
+            if self.dropout > 0:
+                h = self.dropout(h)
+            h = F.relu(layer(g, h))
 
         with g.local_scope():
             g.ndata['h'] = h
@@ -95,20 +103,28 @@ class CustomGCNLayerOnlyNFeatMeanMsg(nn.Module):
         return summary.format(**self.__dict__)
 
 class CustomGCN_OnlyNFeatMeanMsg(nn.Module):
-    def __init__(self, in_feats, h_feats, num_classes):
+    def __init__(self, in_feats, h_feats,num_classes, num_messagepasses=2, dropout=0):
         super(CustomGCN_OnlyNFeatMeanMsg, self).__init__()
         self.conv1 = CustomGCNLayerOnlyNFeatMeanMsg(in_feats, h_feats)
-        self.conv2 = CustomGCNLayerOnlyNFeatMeanMsg(h_feats, h_feats)
+        self.convLayers = nn.ModuleList()
+        for i in range(num_messagepasses - 1):
+            self.convLayers.append(CustomGCNLayerOnlyNFeatMeanMsg(h_feats, h_feats))
+        if(dropout > 0):
+            self.dropout = nn.Dropout(p=dropout)
         self.predict = nn.Linear(h_feats, num_classes)
         
     def reset_parameters(self):
         self.conv1.reset_parameters()
-        self.conv2.reset_parameters()
+        for layer in self.convLayers:
+            layer.reset_parameters()
         self.predict.reset_parameters()
 
     def forward(self, g, in_feat):
         h = F.relu(self.conv1(g, in_feat))
-        h = F.relu(self.conv2(g, h))
+        for layer in self.convLayers:
+            if self.dropout > 0:
+                h = self.dropout(h)
+            h = F.relu(layer(g, h))
 
         with g.local_scope():
             g.ndata['h'] = h

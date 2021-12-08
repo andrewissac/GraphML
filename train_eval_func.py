@@ -4,11 +4,13 @@ from TauGraphDataset import GetNodeFeatureVectors, GetEdgeFeatureVectors, GetNei
 
 # The evaluation function
 @torch.no_grad()
-def evaluate(model, device, dataloader):
+def evaluate(model, device, dataloader, loss_fn):
     model = model.to(device)
     model.eval()
     y_true = []
     y_logits = []
+    epochLoss = 0.0
+    batchIter = 0
 
     for batched_graph, labels in dataloader:
         batched_graph = batched_graph.to(device)
@@ -18,8 +20,11 @@ def evaluate(model, device, dataloader):
         with torch.no_grad():
             pred = model(batched_graph, nodeFeatVec)
 
+        loss = loss_fn(pred,labels)
+        epochLoss += loss.item()
         y_true.append(labels.detach().cpu())
         y_logits.append(pred.detach().cpu())
+        batchIter += 1
 
     y_true = torch.cat(y_true, dim = 0).numpy()
     y_logits = torch.cat(y_logits, dim = 0)
@@ -36,7 +41,8 @@ def evaluate(model, device, dataloader):
         "y_logits": y_logits.tolist(), 
         "y_scoreClass1": y_scoreClass1.tolist(),
         "y_pred": y_pred.tolist(), 
-        "acc": acc
+        "acc": acc,
+        "loss" : epochLoss / batchIter
     }
 
     return evalDict

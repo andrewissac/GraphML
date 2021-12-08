@@ -68,7 +68,7 @@ cutFunctions = {
     CutFunction("pfCand_DeltaR", "float", "pfCand_deltaR"),
 }
 
-baseInputFolder = '/ceph/aissac/ntuple_for_graphs/prod_2018_v2_processed_v5'
+baseInputFolder = '/ceph/aissac/ntuple_for_graphs/prod_2018_v2_processed_v5_THESIS'
 files = glob.glob(baseInputFolder + "/trimmed_500000_and_added_deltaPhiEtaR" + "/**/*.root", recursive=True)
 treename = "taus"
 n = 200000
@@ -77,6 +77,12 @@ outputFolder = path.join(baseInputFolder, f'trimmed_{n}_and_cut_puppiWeightNoLep
 Path(outputFolder).mkdir(parents=True, exist_ok=True)
 
 branchList = ROOT.vector('string')()
+branchList.push_back('tau_byDeepTau2017v2p1VSjetraw')
+branchList.push_back('tau_byDeepTau2017v2p1VSjet')
+branchList.push_back('tau_byDeepTau2017v2p1VSeraw')
+branchList.push_back('tau_byDeepTau2017v2p1VSe')
+branchList.push_back('tau_byDeepTau2017v2p1VSmuraw')
+branchList.push_back('tau_byDeepTau2017v2p1VSmu')
 # only declare c++ code once, not for every file
 for f in cutFunctions:
     ROOT.gInterpreter.Declare(f.code)

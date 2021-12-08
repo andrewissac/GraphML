@@ -25,7 +25,7 @@ class MPGNN(nn.Module):
         Number of graph classes to classify. Default to 1.
     """
     def __init__(self, node_in_feats, edge_in_feats, node_out_feats=16,
-                 edge_hidden_feats=32, num_step_message_passing=2, n_classes=1):
+                 edge_hidden_feats=32, num_step_message_passing=2, n_classes=2):
         super(MPGNN, self).__init__()
 
         self.project_node_feats = nn.Linear(node_in_feats, node_out_feats)

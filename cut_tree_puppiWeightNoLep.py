@@ -73,6 +73,12 @@ outputFolder = path.join(baseInputFolder, f'trimmed_{n}_and_cut_puppiWeightNoLep
 Path(outputFolder).mkdir(parents=True, exist_ok=True)
 
 branchList = ROOT.vector('string')()
+branchList.push_back('tau_byDeepTau2017v2p1VSjetraw')
+branchList.push_back('tau_byDeepTau2017v2p1VSjet')
+branchList.push_back('tau_byDeepTau2017v2p1VSeraw')
+branchList.push_back('tau_byDeepTau2017v2p1VSe')
+branchList.push_back('tau_byDeepTau2017v2p1VSmuraw')
+branchList.push_back('tau_byDeepTau2017v2p1VSmu')
 # only declare c++ code once, not for every file
 for f in cutFunctions:
     ROOT.gInterpreter.Declare(f.code)

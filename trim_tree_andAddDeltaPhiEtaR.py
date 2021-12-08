@@ -100,10 +100,17 @@ files = glob.glob("/ceph/akhmet/forAndrewIsaac/prod_2018_v2_processed_v5" + "/**
 treename = "taus"
 n = 500000
 
-outputFolder = path.join('/ceph/aissac/ntuple_for_graphs/prod_2018_v2_processed_v5', f'trimmed_{n}_and_added_deltaPhiEtaR')
+outputFolder = path.join('/ceph/aissac/ntuple_for_graphs/prod_2018_v2_processed_v5_THESIS', f'trimmed_{n}_and_added_deltaPhiEtaR')
 Path(outputFolder).mkdir(parents=True, exist_ok=True)
 
 branchList = ROOT.vector('string')()
+branchList.push_back('tau_byDeepTau2017v2p1VSjetraw')
+branchList.push_back('tau_byDeepTau2017v2p1VSjet')
+branchList.push_back('tau_byDeepTau2017v2p1VSeraw')
+branchList.push_back('tau_byDeepTau2017v2p1VSe')
+branchList.push_back('tau_byDeepTau2017v2p1VSmuraw')
+branchList.push_back('tau_byDeepTau2017v2p1VSmu')
+
 # only declare c++ code once, not for every file
 for f in calcFunctions:
     ROOT.gInterpreter.Declare(f.code)
