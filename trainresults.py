@@ -7,9 +7,9 @@ from os import path
 from PPrintable import PPrintable
 from sklearn.metrics import roc_curve, auc
 
-matplotlib.rcParams.update({'font.size': 16})
+matplotlib.rcParams.update({'font.size': 24})
 lw = 2
-xyLabelFontSize = 20
+xyLabelFontSize = 24
 xLabelPad = 10
 yLabelPad = 15
 
@@ -138,8 +138,9 @@ class TrainResults(PPrintable):
         ax.set_ylabel('Loss', labelpad=xLabelPad, fontsize=xyLabelFontSize)
         ax.set_xlabel('Epoch', labelpad=yLabelPad, fontsize=xyLabelFontSize)
         ax.legend()
-        outputFilePath = path.join(outputPath, 'epochloss.png')
-        plt.savefig(outputFilePath)
+        outputFilePath = path.join(outputPath, 'epochloss.pdf')
+        plt.tight_layout()
+        plt.savefig(outputFilePath, bbox_inches = 'tight')
         plt.clf()
 
         fig, ax = self.createFigure()
@@ -147,8 +148,9 @@ class TrainResults(PPrintable):
         ax.set_ylabel('Loss', labelpad=xLabelPad, fontsize=xyLabelFontSize)
         ax.set_xlabel('Gradient step', labelpad=yLabelPad, fontsize=xyLabelFontSize)
         ax.legend()
-        outputFilePath = path.join(outputPath, 'runningloss.png')
-        plt.savefig(outputFilePath)
+        outputFilePath = path.join(outputPath, 'runningloss.pdf')
+        plt.tight_layout()
+        plt.savefig(outputFilePath, bbox_inches = 'tight')
         plt.clf()
 
     def saveAccPlot(self, outputPath):
@@ -159,8 +161,9 @@ class TrainResults(PPrintable):
         ax.set_ylabel('Accuracy', labelpad=xLabelPad, fontsize=xyLabelFontSize)
         ax.set_xlabel('Epoch', labelpad=yLabelPad, fontsize=xyLabelFontSize)
         ax.legend()
-        outputFilePath = path.join(outputPath, 'accuracy.png')
-        plt.savefig(outputFilePath)
+        outputFilePath = path.join(outputPath, 'accuracy.pdf')
+        plt.tight_layout()
+        plt.savefig(outputFilePath, bbox_inches = 'tight')
         plt.clf()
 
     def saveROCPlot(self, outputPath):
@@ -176,8 +179,9 @@ class TrainResults(PPrintable):
         ax.set_ylabel('True Positive Rate')
         ax.legend()
         ax.grid()
-        outputFilePath = path.join(outputPath, 'ROC.png')
-        plt.savefig(outputFilePath)
+        outputFilePath = path.join(outputPath, 'ROC.pdf')
+        plt.tight_layout()
+        plt.savefig(outputFilePath, bbox_inches = 'tight')
         plt.clf()
 
     def getAUC(self):

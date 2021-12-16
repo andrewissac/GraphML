@@ -1,5 +1,6 @@
 *.png
 *.json
 *.pyc
+*.pdf
 .ipynb_checkpoints/
 .vscode/
